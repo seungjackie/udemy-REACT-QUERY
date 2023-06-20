@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "react-query";
 
 import { PostDetail } from "./PostDetail";
 const maxPostPage = 10;
@@ -14,8 +15,22 @@ export function Posts() {
   const [currentPage, setCurrentPage] = useState(0);
   const [selectedPost, setSelectedPost] = useState(null);
 
-  // replace with useQuery
-  const data = [];
+  // replace with useQuery, 구조 분해
+  const { data, isError, isLoading, error } = useQuery("posts", fetchPosts, {
+    staleTime: 2000,
+  }); // 쿼리 키 / 쿼리 함수
+  if (isLoading) return <div>Loading...</div>;
+  if (isError)
+    return (
+      <>
+        <div>Error fetching posts</div>
+        <p>{error.toString()}</p>
+      </>
+    );
+
+  // isfetching
+  // isloading는 상테에 쿼리 함수가 캐시가 없고 데이터를 가져온다.
+  // 페이지 없을때와 있을때를 구분 해야 한다.
 
   return (
     <>

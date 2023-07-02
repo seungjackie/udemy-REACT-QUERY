@@ -10,12 +10,14 @@ const fetchUrl = async (url) => {
 };
 
 export function InfiniteSpecies() {
+  const [isFetching, setIsFetching] = useState(false);
+
   const {
     data,
     fetchNextPage,
     hasNextPage,
     isLoading,
-    isFetching,
+    // isFetching,
     isError,
     error,
   } = useInfiniteQuery(
@@ -38,7 +40,7 @@ export function InfiniteSpecies() {
         // https://www.udemy.com/course/learn-react-query/learn/#questions/18222646/)
         initialLoad={false}
         loadMore={fetchNextPage}
-        hasMore={hasNextPage}
+        hasMore={!isFetching && hasNextPage}
       >
         {data.pages.map((pageData) => {
           return pageData.results.map((species) => {

@@ -70,7 +70,7 @@ export function useAuth(): UseAuth {
   }
 
   function signout(): void {
-    // clear user from stored user data
+    // clear user from stored user data, 로그아웃시 클리어 유저
     clearUser();
     toast({
       title: 'Logged out!',

@@ -27,6 +27,7 @@ export function Appointment({
   appointmentData,
 }: AppointmentProps): ReactElement {
   const { user } = useUser();
+  // 뮤테이트 펑션
   const reserveAppointment = useReserveAppointment();
   const [textColor, bgColor] = getAppointmentColor(appointmentData, user?.id);
 
@@ -37,7 +38,8 @@ export function Appointment({
   // turn the lozenge into a button if it's clickable
   if (clickable) {
     onAppointmentClick = user
-      ? () => reserveAppointment(appointmentData)
+      ? // 데이터를 예약하는 함수
+        () => reserveAppointment(appointmentData)
       : undefined;
     hoverCss = {
       transform: 'translateY(-1px)',

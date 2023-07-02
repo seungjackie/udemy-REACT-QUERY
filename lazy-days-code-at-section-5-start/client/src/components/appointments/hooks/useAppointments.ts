@@ -1,47 +1,36 @@
-// @ts-nocheck
 import dayjs from 'dayjs';
-import { Dispatch, SetStateAction, useState } from 'react';
+import {
+  Dispatch,
+  SetStateAction,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
+import { useQuery, useQueryClient } from 'react-query';
 
-import { Appointment } from '../../../../../shared/types';
 import { axiosInstance } from '../../../axiosInstance';
 import { queryKeys } from '../../../react-query/constants';
 import { useUser } from '../../user/hooks/useUser';
 import { AppointmentDateMap } from '../types';
 import { getAvailableAppointments } from '../utils';
+import { getMonthYearDetails, getNewMonthYear, MonthYear } from './monthYear';
 
-// for when we need a query function for useQuery
-// async function getAppointments(year: string, month: string): Promise<Appointment[]> {
-//   const { data } = await axiosInstance.get(`/appointments/${year}/${month}`);
-//   return data;
-// }
+// common options for both useQuery and prefetchQuery
+const commonOptions = {
+  staleTime: 0,
+  cacheTime: 300000, // 5 minutes
+};
 
-// for incrementing MonthYear
-function getUpdatedMonthYear(monthYear: MonthYear, monthIncrement: number) {
-  // the clone is necessary to prevent mutation
-  return monthYear.startDate.clone().add(monthIncrement, 'months');
+// query function for useQuery call
+async function getAppointments(
+  year: string,
+  month: string,
+): Promise<AppointmentDateMap> {
+  const { data } = await axiosInstance.get(`/appointments/${year}/${month}`);
+  return data;
 }
 
-// for storing current month / year details
-interface MonthYear {
-  startDate: dayjs.Dayjs; // first day of the month
-  firstDOW: number; // day of week; 0 === Sunday
-  lastDate: number; // last date of the month
-  monthName: string; // name of the month
-  month: string; // two digit month number
-  year: string; // four digit year
-}
-
-// get calendar-relevant data for the month containing initialDate
-function getMonthYearDetails(initialDate: dayjs.Dayjs): MonthYear {
-  const month = initialDate.format('MM');
-  const year = initialDate.format('YYYY');
-  const startDate = dayjs(`${year}${month}01`);
-  const firstDOW = Number(startDate.format('d'));
-  const lastDate = Number(startDate.clone().endOf('month').format('DD'));
-  const monthName = startDate.format('MMMM');
-  return { startDate, firstDOW, lastDate, monthName, month, year };
-}
-
+// types for hook return object
 interface UseAppointments {
   appointments: AppointmentDateMap;
   monthYear: MonthYear;
@@ -50,21 +39,79 @@ interface UseAppointments {
   setShowAll: Dispatch<SetStateAction<boolean>>;
 }
 
+// The purpose of this hook:
+//   1. track the current month/year (aka monthYear) selected by the user
+//     1a. provide a way to update state
+//   2. return the appointments for that particular monthYear
+//     2a. return in AppointmentDateMap format (appointment arrays indexed by day of month)
+//     2b. prefetch the appointments for adjacent monthYears
+//   3. track the state of the filter (all appointments / available appointments)
+//     3a. return the only the applicable appointments for the current monthYear
 export function useAppointments(): UseAppointments {
-  const currentDate = dayjs();
-  const [monthYear, setMonthYear] = useState(getMonthYearDetails(currentDate));
+  /** ****************** START 1: monthYear state *********************** */
+  // get the monthYear for the current date (for default monthYear state)
+  const currentMonthYear = getMonthYearDetails(dayjs());
 
-  // TODO: update with useQuery!
-  const appointments = [];
+  // state to track current monthYear chosen by user
+  // state value is returned in hook return object
+  const [monthYear, setMonthYear] = useState(currentMonthYear);
 
-  // for showing all appointments or just available ones
+  // setter to update monthYear obj in state when user changes month in view,
+  // returned in hook return object
+  function updateMonthYear(monthIncrement: number): void {
+    setMonthYear((prevData) => getNewMonthYear(prevData, monthIncrement));
+  }
+  /** ****************** END 1: monthYear state ************************* */
+  /** ****************** START 2: filter appointments  ****************** */
+  // State and functions for filtering appointments to show all or only available
   const [showAll, setShowAll] = useState(false);
+
+  // We will need imported function getAvailableAppointments here
+  // We need the user to pass to getAvailableAppointments so we can show
+  //   appointments that the logged-in user has reserved (in white)
   const { user } = useUser();
 
-  // to update when user changes month in view
-  function updateMonthYear(monthIncrement: number): void {
-    // to be written
-  }
+  const selectFn = useCallback((data) => getAvailableAppointments(data, user), [
+    user,
+  ]);
+  /** ****************** END 2: filter appointments  ******************** */
+  /** ****************** START 3: useQuery  ***************************** */
+  // useQuery call for appointments for the current monthYear
+
+  // prefetch next month when monthYear changes
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    // assume increment of one month
+    const nextMonthYear = getNewMonthYear(monthYear, 1);
+    queryClient.prefetchQuery(
+      [queryKeys.appointments, nextMonthYear.year, nextMonthYear.month],
+      () => getAppointments(nextMonthYear.year, nextMonthYear.month),
+      commonOptions,
+    );
+  }, [queryClient, monthYear]);
+
+  // Notes:
+  //    1. appointments is an AppointmentDateMap (object with days of month
+  //       as properties, and arrays of appointments for that day as values)
+  //
+  //    2. The getAppointments query function needs monthYear.year and
+  //       monthYear.month
+  const fallback = {};
+
+  const { data: appointments = fallback } = useQuery(
+    [queryKeys.appointments, monthYear.year, monthYear.month],
+    () => getAppointments(monthYear.year, monthYear.month),
+    {
+      select: showAll ? undefined : selectFn,
+      ...commonOptions,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+      refetchOnWindowFocus: true,
+      refetchInterval: 60000, // 60 seconds
+    },
+  );
+
+  /** ****************** END 3: useQuery  ******************************* */
 
   return { appointments, monthYear, updateMonthYear, showAll, setShowAll };
 }

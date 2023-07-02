@@ -1,5 +1,5 @@
 import { createStandaloneToast } from '@chakra-ui/react';
-import { QueryClient } from 'react-query';
+import { MutationCache, QueryClient } from 'react-query';
 
 import { theme } from '../theme';
 
@@ -18,10 +18,27 @@ function queryErrorHandler(error: unknown): void {
 
 // to satisfy typescript until this file has uncommented contents
 
+// 기본 에러 생성
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      // 에러 핸들러 생성, 보수적인 방법,  대부분 쿼리에서 리페칭 할만큼 데이터 변경이 충분하지 않다. 데이터를 무용지물 만들수 있다.
+      // 글로벌로 적용
+      //
+      onError: queryErrorHandler,
+      staleTime: 600000,
+      cacheTime: 600000,
+      refetchOnMount: false,
+      refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
+    },
+    mutations: {
       onError: queryErrorHandler,
     },
   },
+
+  // mutationCache: new MutationCache({
+  //   onError: queryErrorHandler,
+  // }),
+  // },
 });
